@@ -26,6 +26,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Download Built Image
+        uses: actions/download-artifact@v4
+        with:
+          name: nginx-image
+
+      - name: Load Image into Docker
+        run: |
+          docker load < nginx-image.tar
+          docker images # This confirms the scanner can now "see" the image
+
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y jq libhyperscan5
 

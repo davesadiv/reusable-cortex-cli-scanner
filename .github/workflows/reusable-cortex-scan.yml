@@ -64,6 +64,11 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
+          # 1. Verify the image is present in the local Docker daemon
+          echo "Verifying local image presence..."
+          docker images | grep "nginx" || (echo "ERROR: Image not found locally"; exit 1)
+
+          # 2. Run the scan with full path logs
           mkdir -p .cortexcli/logs
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \

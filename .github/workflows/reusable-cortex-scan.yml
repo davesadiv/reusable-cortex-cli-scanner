@@ -17,7 +17,7 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment_name }}
+    environment: Cortex
     
     # Defining env here makes it available to ALL steps in this job
     env:
@@ -67,4 +67,4 @@ jobs:
             --scanners "vulnerability,malware,secret" \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
-            --api-base-url "${{ env.CORTEX_API_URL }}" || true
+            --api-base-url "$CORTEX_API_URL" || true

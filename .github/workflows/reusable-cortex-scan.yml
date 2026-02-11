@@ -1,0 +1,70 @@
+name: Reusable Cortex Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        required: true
+        type: string
+        description: "The Docker image name to scan"
+      scan_directory:
+        required: false
+        type: string
+        default: "."
+        description: "Directory for IaC scanning"
+      environment_name:
+        required: true
+        type: string
+        description: "The GitHub Environment to pull secrets from"
+    secrets:
+      GCP_KEY:
+        required: true
+      CORTEX_API_KEY:
+        required: true
+      CORTEX_API_KEY_ID:
+        required: true
+
+env:
+  CORTEX_BASE_URL: https://api-pcscortexcloud.xdr.us.paloaltonetworks.com
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment_name }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq libhyperscan5
+
+      - name: Download Cortex CLI
+        env:
+          CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
+          CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+        run: |
+          RESPONSE=$(curl -s -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" -H "Authorization: ${CORTEX_API_KEY}" \
+            "${CORTEX_BASE_URL}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64")
+          URL=$(echo "$RESPONSE" | jq -r '.signed_url // empty')
+          curl -sL -o ./cortexcli "$URL" && chmod +x ./cortexcli
+
+      - name: IaC Scan
+        env:
+          CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
+          CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+        run: |
+          ./cortexcli code scan --directory "${{ inputs.scan_directory }}" \
+            --repo-id "${{ github.repository }}" --branch "${{ github.ref_name }}" \
+            --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" \
+            --api-base-url "$CORTEX_BASE_URL" --create-repo-if-missing || true
+
+      - name: Image Scan
+        env:
+          CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
+          CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+        run: |
+          # Pull or Build logic would go here depending on your needs
+          ./cortexcli image scan "${{ inputs.image_name }}" \
+            --scanners "vulnerability,malware,secret" \
+            --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" \
+            --api-base-url "$CORTEX_BASE_URL" || true

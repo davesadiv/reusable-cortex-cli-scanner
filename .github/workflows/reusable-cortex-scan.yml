@@ -67,4 +67,4 @@ jobs:
           ./cortexcli image scan "${{ inputs.image_name }}" \
             --scanners "vulnerability,malware,secret" \
             --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" \
-            --api-base-url "$CORTEX_BASE_URL" || true
+            --api-base-url "${CORTEX_BASE_URL}" || true

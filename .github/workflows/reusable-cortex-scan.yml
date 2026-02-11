@@ -66,6 +66,7 @@ jobs:
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
-            --api-base-url "${{ env.CORTEX_API_URL }}" \
-            image scan "${{ inputs.image_name }}" \
+            --api-base-url "https://api-pcscortexcloud.xdr.us.paloaltonetworks.com" \
+           image scan "us-central1-docker.pkg.dev/pcs-gcp-lab01/ew-acr/nginx:latest" \
             --scanners "vulnerability,malware,secret" || true
+            --timeout 300

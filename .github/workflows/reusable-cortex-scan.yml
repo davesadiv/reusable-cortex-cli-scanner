@@ -17,9 +17,8 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    environment: Cortex
+    environment: ${{ inputs.environment_name }}
     
-    # Defining env here makes it available to ALL steps in this job
     env:
       CORTEX_API_URL: https://api-pcscortexcloud.xdr.us.paloaltonetworks.com
 
@@ -49,13 +48,14 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          ./cortexcli code scan \
-            --directory "${{ inputs.scan_directory }}" \
-            --repo-id "${{ github.repository }}" \
-            --branch "${{ github.ref_name }}" \
+          ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
             --api-base-url "${{ env.CORTEX_API_URL }}" \
+            code scan \
+            --directory "${{ inputs.scan_directory }}" \
+            --repo-id "${{ github.repository }}" \
+            --branch "${{ github.ref_name }}" \
             --create-repo-if-missing || true
 
       - name: Image Scan
@@ -63,8 +63,9 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          ./cortexcli image scan "${{ inputs.image_name }}" \
-            --scanners "vulnerability,malware,secret" \
+          ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
-            --api-base-url "$CORTEX_API_URL" || true
+            --api-base-url "${{ env.CORTEX_API_URL }}" \
+            image scan "${{ inputs.image_name }}" \
+            --scanners "vulnerability,malware,secret" || true

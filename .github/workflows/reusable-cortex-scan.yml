@@ -29,11 +29,11 @@ jobs:
       - name: Download Built Image
         uses: actions/download-artifact@v4
         with:
-          name: nginx-image
+          name: alpine-image
 
       - name: Load Image into Docker
         run: |
-          docker load < nginx-image.tar
+          docker load < alpine-image.tar
           docker images # This confirms the scanner can now "see" the image
 
       - name: Install Dependencies

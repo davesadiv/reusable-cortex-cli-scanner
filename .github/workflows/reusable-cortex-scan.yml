@@ -33,7 +33,7 @@ jobs:
 
       - name: Load Image into Docker
         run: |
-          docker load < alpine-image.tar
+          docker load < nginx-image.tar
           docker images # This confirms the scanner can now "see" the image
 
       - name: Install Dependencies

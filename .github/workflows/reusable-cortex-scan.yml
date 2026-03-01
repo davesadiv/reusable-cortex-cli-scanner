@@ -62,12 +62,12 @@ jobs:
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
             --api-base-url "${{ env.CORTEX_API_URL }}" \
+            --soft-fail \
             code scan \
             --directory "${{ inputs.scan_directory }}" \
             --repo-id "${{ github.repository }}" \
             --branch "${{ github.ref_name }}" \
             --timeout 300 \
-            --soft-fail \
             --create-repo-if-missing
 
       - name: Image Scan
@@ -79,7 +79,7 @@ jobs:
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
             --api-base-url "${{ env.CORTEX_API_URL }}" \
+            --soft-fail \
             image scan "${{ inputs.image_name }}" \
             --scanners "vulnerability,malware,secret" \
-            --timeout 300 \
-            --soft-fail
+            --timeout 300

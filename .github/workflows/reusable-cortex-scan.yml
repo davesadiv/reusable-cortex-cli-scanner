@@ -53,12 +53,28 @@ jobs:
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
 
+      - name: IaC (Code) Scan
+        env:
+          CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
+          CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+        run: |
+          ./cortexcli \
+            --api-key "${CORTEX_API_KEY}" \
+            --api-key-id "${CORTEX_API_KEY_ID}" \
+            --api-base-url "${{ env.CORTEX_API_URL }}" \
+            code scan \
+            --directory "${{ inputs.scan_directory }}" \
+            --repo-id "${{ github.repository }}" \
+            --branch "${{ github.ref_name }}" \
+            --timeout 300 \
+            --soft-fail \
+            --create-repo-if-missing
+
       - name: Image Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # --soft-fail allows the build to pass but still outputs findings to the console
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \

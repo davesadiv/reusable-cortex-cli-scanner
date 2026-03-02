@@ -57,6 +57,7 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
+          echo "Scanning Repository: ${{ github.repository }}"
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -75,6 +76,7 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
+          echo "Scanning Image: ${{ inputs.image_name }}"
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -82,5 +84,4 @@ jobs:
             --soft-fail \
             image scan "${{ inputs.image_name }}" \
             --scanners "vulnerability,malware,secret" \
-            --print-results \
-            --timeout 300
+            --print-results

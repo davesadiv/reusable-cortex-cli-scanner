@@ -6,17 +6,13 @@ on:
       image_name:
         required: true
         type: string
-      scan_directory:
-        required: false
-        type: string
-        default: "."
       environment_name:
         required: true
         type: string
 
 jobs:
   scan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # Required property for the job to execute
     environment: ${{ inputs.environment_name }}
     
     steps:
@@ -31,6 +27,8 @@ jobs:
       - name: Load Image into Docker
         run: |
           docker load < nginx-image.tar
+          # Verify image is present for the scanner
+          echo "Scanning target: ${{ inputs.image_name }}"
           docker images
 
       - name: Install Dependencies
@@ -42,6 +40,7 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
+          # Fetch the CLI download link from the Public API
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
@@ -57,18 +56,16 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          echo "Scanning Repository: ${{ github.repository }}"
+          # --soft-fail must be a global flag before the 'code' command
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
             --api-base-url "${CORTEX_API_URL}" \
             --soft-fail \
             code scan \
-            --directory "${{ inputs.scan_directory }}" \
+            --directory "." \
             --repo-id "${{ github.repository }}" \
-            --branch "${{ github.ref_name }}" \
-            --print-results \
-            --create-repo-if-missing
+            --print-results # Ensure table is printed to GitHub logs
 
       - name: Image Scan
         env:
@@ -76,7 +73,7 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          echo "Scanning Image: ${{ inputs.image_name }}"
+          # --soft-fail must be a global flag before the 'image' command
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -84,4 +81,4 @@ jobs:
             --soft-fail \
             image scan "${{ inputs.image_name }}" \
             --scanners "vulnerability,malware,secret" \
-            --print-results
+            --print-results # Force results to the console

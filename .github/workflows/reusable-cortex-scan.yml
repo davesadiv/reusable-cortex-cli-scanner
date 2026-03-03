@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment_name }}
     
-    # Hardcoded URL to prevent variable lookup failures
     env:
       CORTEX_API_URL: https://api-pcscortexcloud.xdr.us.paloaltonetworks.com
 
@@ -50,10 +49,14 @@ jobs:
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-        run: ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail code scan --directory "." --repo-id "${{ github.repository }}" --print-results
+        run: |
+          ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail code scan --directory "." --repo-id "${{ github.repository }}" --print-results
+          sleep 5
 
       - name: Image Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-        run: ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail image scan "${{ inputs.image_name }}" --scanners "vulnerability,malware,secret" --print-results
+        run: |
+          ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail image scan "${{ inputs.image_name }}" --scanners "vulnerability,malware,secret" --print-results
+          sleep 10

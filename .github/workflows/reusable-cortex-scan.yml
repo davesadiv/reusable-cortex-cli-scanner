@@ -53,12 +53,12 @@ jobs:
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-        # Consolidated to one line to ensure flags are correctly interpreted
+        # Consolidated to a single line to prevent shell parsing errors
         run: ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail code scan --directory "${{ inputs.scan_directory }}" --repo-id "${{ github.repository }}" --print-results
 
       - name: Image Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-        # Added --print-results to force data into GitHub logs
+        # --print-results is mandatory to see findings in GitHub logs
         run: ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail image scan "${{ inputs.image_name }}" --scanners "vulnerability,malware,secret" --print-results

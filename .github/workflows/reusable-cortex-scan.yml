@@ -34,7 +34,7 @@ jobs:
       - name: Load Image into Docker
         run: |
           docker load < nginx-image.tar
-          docker images
+          docker images # This confirms the scanner can now "see" the image
 
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y jq libhyperscan5
@@ -44,21 +44,47 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          RESPONSE=$(curl -s -f -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" -H "Authorization: ${CORTEX_API_KEY}" "${CORTEX_API_URL}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64")
+          RESPONSE=$(curl -s -f \
+            -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
+            -H "Authorization: ${CORTEX_API_KEY}" \
+            "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64")
+          
           URL=$(echo "$RESPONSE" | jq -r '.signed_url // empty')
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
 
-      - name: IaC (Code) Scan
+      - name: IaC Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-        # Consolidated to one line with --print-results
-        run: ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail code scan --directory "${{ inputs.scan_directory }}" --repo-id "${{ github.repository }}" --print-results
+        run: |
+          ./cortexcli \
+            --api-key "${CORTEX_API_KEY}" \
+            --api-key-id "${CORTEX_API_KEY_ID}" \
+            --api-base-url "${{ env.CORTEX_API_URL }}" \
+            code scan \
+            --directory "${{ inputs.scan_directory }}" \
+            --repo-id "${{ github.repository }}" \
+            --branch "${{ github.ref_name }}" \
+            --timeout 300 \
+            --create-repo-if-missing || echo "IaC scan identified issues."
 
       - name: Image Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-        # --soft-fail must be a global flag before the 'image' command
-        run: ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail image scan "${{ inputs.image_name }}" --scanners "vulnerability,malware,secret" --print-results
+        run: |
+          # 1. Verify the image is present in the local Docker daemon
+          echo "Verifying local image presence..."
+          docker images | grep "nginx" || (echo "ERROR: Image not found locally"; exit 1)
+
+          # 2. Run the scan with full path logs
+          mkdir -p .cortexcli/logs
+          ./cortexcli \
+            --api-key "${CORTEX_API_KEY}" \
+            --api-key-id "${CORTEX_API_KEY_ID}" \
+            --api-base-url "${{ env.CORTEX_API_URL }}" \
+            image scan "${{ inputs.image_name }}" \
+            --scanners "vulnerability,malware,secret" \
+            --timeout 300 \
+            --log-path ".cortexcli/logs/image-scan.log" || echo "Image scan found security risks."

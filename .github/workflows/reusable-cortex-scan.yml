@@ -44,7 +44,6 @@ jobs:
           URL=$(echo "$RESPONSE" | jq -r '.signed_url // empty')
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
-          ./cortexcli version
 
       - name: IaC (Code) Scan
         env:

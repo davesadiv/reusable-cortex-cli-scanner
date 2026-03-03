@@ -44,43 +44,21 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          RESPONSE=$(curl -s -f \
-            -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
-            -H "Authorization: ${CORTEX_API_KEY}" \
-            "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64")
-          
+          RESPONSE=$(curl -s -f -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" -H "Authorization: ${CORTEX_API_KEY}" "${CORTEX_API_URL}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64")
           URL=$(echo "$RESPONSE" | jq -r '.signed_url // empty')
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
 
-      - name: IaC Scan
+      - name: IaC (Code) Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-        run: |
-          # Use --soft-fail globally and --print-results to see data
-          ./cortexcli \
-            --api-key "${CORTEX_API_KEY}" \
-            --api-key-id "${CORTEX_API_KEY_ID}" \
-            --api-base-url "${{ env.CORTEX_API_URL }}" \
-            --soft-fail \
-            code scan \
-            --directory "${{ inputs.scan_directory }}" \
-            --repo-id "${{ github.repository }}" \
-            --branch "${{ github.ref_name }}" \
-            --print-results
+        # Consolidated to one line to ensure flags are correctly interpreted
+        run: ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail code scan --directory "${{ inputs.scan_directory }}" --repo-id "${{ github.repository }}" --print-results
 
       - name: Image Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-        run: |
-          # Added --print-results to force table output in GitHub logs
-          ./cortexcli \
-            --api-key "${CORTEX_API_KEY}" \
-            --api-key-id "${CORTEX_API_KEY_ID}" \
-            --api-base-url "${{ env.CORTEX_API_URL }}" \
-            --soft-fail \
-            image scan "${{ inputs.image_name }}" \
-            --scanners "vulnerability,malware,secret" \
-            --print-results
+        # Added --print-results to force data into GitHub logs
+        run: ./cortexcli --api-key "${CORTEX_API_KEY}" --api-key-id "${CORTEX_API_KEY_ID}" --api-base-url "${CORTEX_API_URL}" --soft-fail image scan "${{ inputs.image_name }}" --scanners "vulnerability,malware,secret" --print-results

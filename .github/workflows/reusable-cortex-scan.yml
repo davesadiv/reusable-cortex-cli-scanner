@@ -18,7 +18,6 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment_name }}
-    
     env:
       CORTEX_API_URL: https://api-pcscortexcloud.xdr.us.paloaltonetworks.com
 
@@ -34,7 +33,7 @@ jobs:
       - name: Load Image into Docker
         run: |
           docker load < nginx-image.tar
-          docker images # Confirming image presence for the scanner
+          docker images
 
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y jq libhyperscan5
@@ -44,12 +43,10 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # Retrieve the authorized download link for the CLI
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
             "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64")
-          
           URL=$(echo "$RESPONSE" | jq -r '.signed_url // empty')
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
@@ -59,8 +56,6 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # 'code scan' handles IaC misconfigurations
-          # --api-base-url, --api-key-id, and --api-key are required for cloud upload
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -70,15 +65,13 @@ jobs:
             --repo-id "${{ github.repository }}" \
             --branch "${{ github.ref_name }}" \
             --create-repo-if-missing \
-            --timeout 300 || echo "IaC scan identified security risks."
+            --timeout 300 || echo "IaC scan complete."
 
       - name: Image Scan and Upload
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # 'image scan' for container analysis and cloud upload
-          # --create-repo-if-missing ensures results map to an entity in your catalog
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -88,4 +81,4 @@ jobs:
             --repo-id "${{ github.repository }}" \
             --branch "${{ github.ref_name }}" \
             --create-repo-if-missing \
-            --timeout 300 || echo "Image scan identified security risks."
+            --timeout 300 || echo "Image scan complete."

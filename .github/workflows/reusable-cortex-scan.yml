@@ -34,7 +34,7 @@ jobs:
       - name: Load Image into Docker
         run: |
           docker load < nginx-image.tar
-          docker images
+          docker images # Confirm image is present locally
 
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y jq libhyperscan5
@@ -44,6 +44,7 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
+          # Fetch the authorized download link for the CLI
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
@@ -53,12 +54,12 @@ jobs:
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
 
-      - name: IaC and Code Scan
+      - name: IaC (Code) Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # Use 'code scan' for IaC analysis
+          # Use 'code scan' for IaC and misconfiguration analysis
           # --api-base-url, --api-key-id, and --api-key are mandatory for cloud upload
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
@@ -76,7 +77,8 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # Use 'image scan' for container analysis
+          # Perform container analysis and upload results
+          # --create-repo-if-missing ensures the results map to an entity in your catalog
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \

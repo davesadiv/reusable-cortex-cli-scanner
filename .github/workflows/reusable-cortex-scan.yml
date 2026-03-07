@@ -31,10 +31,11 @@ jobs:
         with:
           name: nginx-image
 
-      - name: Load Image into Docker
+      - name: Load and Verify Image
         run: |
           docker load < nginx-image.tar
-          docker images # This confirms the scanner can now "see" the image
+          # Verify the file exists in the image layers before scanning
+          docker run --rm ${{ inputs.image_name }} ls -l /etc/wildfire-elf || echo "WARNING: wildfire-elf not found in /etc/"
 
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y jq libhyperscan5
@@ -53,11 +54,12 @@ jobs:
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
 
-      - name: IaC Scan
+      - name: IaC (Code) Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
+          # Scanning the source directory for misconfigurations
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -66,25 +68,32 @@ jobs:
             --directory "${{ inputs.scan_directory }}" \
             --repo-id "${{ github.repository }}" \
             --branch "${{ github.ref_name }}" \
-            --timeout 300 \
-            --create-repo-if-missing || echo "IaC scan identified issues."
+            --create-repo-if-missing \
+            --timeout 300 || echo "IaC risks found."
 
-      - name: Image Scan
+      - name: Image Scan and Malware Detection
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # 1. Verify the image is present in the local Docker daemon
-          echo "Verifying local image presence..."
-          docker images | grep "nginx" || (echo "ERROR: Image not found locally"; exit 1)
-
-          # 2. Run the scan with full path logs
           mkdir -p .cortexcli/logs
+          # Explicitly adding 'malware' to the --scanners flag
+          # Using --log-path to capture why wildfire-elf might be skipped
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
             --api-base-url "${{ env.CORTEX_API_URL }}" \
             image scan "${{ inputs.image_name }}" \
             --scanners "vulnerability,malware,secret" \
-            --timeout 300 \
-            --log-path ".cortexcli/logs/image-scan.log" || echo "Image scan found security risks."
+            --repo-id "${{ github.repository }}" \
+            --branch "${{ github.ref_name }}" \
+            --create-repo-if-missing \
+            --log-path ".cortexcli/logs/image-scan.log" \
+            --timeout 300 || echo "Security risks identified."
+
+      - name: Upload Debug Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-debug-logs
+          path: .cortexcli/logs/

@@ -31,11 +31,12 @@ jobs:
         with:
           name: nginx-image
 
-      - name: Load and Verify Image
+      - name: Load and Verify File Presence
         run: |
           docker load < nginx-image.tar
-          # Verify the file exists in the image layers before scanning
-          docker run --rm ${{ inputs.image_name }} ls -l /etc/wildfire-elf || echo "WARNING: wildfire-elf not found in /etc/"
+          # Manually verify wildfire-elf exists in the image layers
+          echo "Verifying /etc/wildfire-elf presence..."
+          docker run --rm --entrypoint /bin/sh ${{ inputs.image_name }} -c "ls -l /etc/wildfire-elf" || echo "ERROR: File not found in image layers"
 
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y jq libhyperscan5
@@ -59,7 +60,6 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # Scanning the source directory for misconfigurations
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -69,7 +69,7 @@ jobs:
             --repo-id "${{ github.repository }}" \
             --branch "${{ github.ref_name }}" \
             --create-repo-if-missing \
-            --timeout 300 || echo "IaC risks found."
+            --timeout 300 || echo "IaC scan identified security risks."
 
       - name: Image Scan and Malware Detection
         env:
@@ -77,8 +77,8 @@ jobs:
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
           mkdir -p .cortexcli/logs
-          # Explicitly adding 'malware' to the --scanners flag
-          # Using --log-path to capture why wildfire-elf might be skipped
+          # Mandatory authentication flags for cloud upload
+          # Explicitly calling "malware" scanner to detect wildfire-elf
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \

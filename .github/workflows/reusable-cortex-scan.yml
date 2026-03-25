@@ -18,7 +18,7 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    # Points to the 'Cortex' environment in GitHub Settings
+    # Targets the specified environment to access associated secrets
     environment: ${{ inputs.environment_name }}
 
     steps:
@@ -33,7 +33,7 @@ jobs:
       - name: Load and Verify File Presence
         run: |
           docker load < nginx-image.tar
-          # Confirms /etc/wildfire-elf is physically in the image
+          # Confirms the wildfire-elf file exists before scanning
           echo "Verifying /etc/wildfire-elf presence..."
           docker run --rm --entrypoint /bin/sh ${{ inputs.image_name }} -c "ls -l /etc/wildfire-elf"
 
@@ -42,11 +42,12 @@ jobs:
 
       - name: Download Cortex CLI
         env:
+          # Explicitly mapping secrets to prevent empty variable errors
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
           CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Use hidden Environment Secrets for the download URL
+          # Uses the CORTEX_API_URL secret to fetch the CLI download link
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
@@ -61,7 +62,7 @@ jobs:
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
           CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Performs IaC analysis and pushes results to the cloud tenant
+          # Identifies misconfigurations in source files like Dockerfiles
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -79,10 +80,10 @@ jobs:
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
           CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Absolute workspace path ensures logs are findable for upload
+          # Absolute workspace path fixes the "No files found" artifact error
           mkdir -p ${{ github.workspace }}/cortex_logs
           
-          # Explicitly includes 'malware' scanner to detect wildfire-elf
+          # Includes 'malware' scanner to target wildfire-elf
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -100,5 +101,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cortex-debug-logs
-          # Path must match the absolute directory created in the scan step
+          # Path matches the absolute directory created during the scan
           path: ${{ github.workspace }}/cortex_logs/

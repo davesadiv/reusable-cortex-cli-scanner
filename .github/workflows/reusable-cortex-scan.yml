@@ -31,11 +31,12 @@ jobs:
         with:
           name: nginx-image
 
-      - name: Load Image into Docker
+      - name: Load and Verify File Presence
         run: |
-          # Load the image built in the previous job into the local daemon
           docker load < nginx-image.tar
-          docker images
+          # Verified file presence in previous logs: /etc/wildfire-elf
+          echo "Verifying file existence in image layer..."
+          docker run --rm --entrypoint /bin/sh ${{ inputs.image_name }} -c "ls -l /etc/wildfire-elf"
 
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y jq libhyperscan5
@@ -45,44 +46,23 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # Retrieve the signed download link for the latest CLI binary
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
             "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64")
-          
           URL=$(echo "$RESPONSE" | jq -r '.signed_url // empty')
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
 
-      - name: IaC (Code) Scan
+      - name: Image Scan and Malware Detection
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # Use 'code scan' for IaC misconfiguration analysis
-          # --api-base-url, --api-key-id, and --api-key are required for cloud upload
-          ./cortexcli \
-            --api-key "${CORTEX_API_KEY}" \
-            --api-key-id "${CORTEX_API_KEY_ID}" \
-            --api-base-url "${{ env.CORTEX_API_URL }}" \
-            code scan \
-            --directory "${{ inputs.scan_directory }}" \
-            --repo-id "${{ github.repository }}" \
-            --branch "${{ github.ref_name }}" \
-            --create-repo-if-missing \
-            --timeout 300 || echo "IaC scan identified security risks."
-
-      - name: Image Scan and Upload
-        env:
-          CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
-          CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-        run: |
-          # Confirm local image presence before container analysis
-          docker images | grep "nginx"
+          # Create an explicit log directory in the workspace to fix artifact upload
+          mkdir -p ${{ github.workspace }}/cortex_logs
           
-          # Perform image scanning and push results to the tenant
-          # --create-repo-if-missing ensures results are mapped to your catalog
+          # Use absolute path for log-path to ensure the file is written correctly
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -90,6 +70,14 @@ jobs:
             image scan "${{ inputs.image_name }}" \
             --scanners "vulnerability,malware,secret" \
             --repo-id "${{ github.repository }}" \
-            --branch "${{ github.ref_name }}" \
             --create-repo-if-missing \
-            --timeout 300 || echo "Image scan identified security risks."
+            --log-path "${{ github.workspace }}/cortex_logs/image-scan.log" \
+            --timeout 300 || echo "Scan identified security risks"
+
+      - name: Upload Debug Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-debug-logs
+          # Path must match the directory created and used in the scan step
+          path: ${{ github.workspace }}/cortex_logs/

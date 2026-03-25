@@ -10,7 +10,7 @@ on:
         required: false
         type: string
         default: "."
-      environment_name: 
+      environment_name:
         required: true
         type: string
 
@@ -18,7 +18,7 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     # This must match the Environment name in your GitHub Settings
-    environment: Cortex
+    environment: ${{ inputs.environment_name }}
 
     steps:
       - name: Checkout Repository
@@ -43,9 +43,9 @@ jobs:
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+          # URL is now hidden in Environment Secrets
           CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Use the hidden API URL from Environment Secrets
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
@@ -60,7 +60,7 @@ jobs:
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
           CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Performs IaC analysis and pushes results to the cloud
+          # Performs IaC analysis on your source directory
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \

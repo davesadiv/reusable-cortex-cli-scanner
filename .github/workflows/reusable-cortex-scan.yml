@@ -10,17 +10,15 @@ on:
         required: false
         type: string
         default: "."
-      environment_name:
+      environment_name: 
         required: true
         type: string
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment_name }}
-    
-    env:
-      CORTEX_API_URL: https://api-pcscortexcloud.xdr.us.paloaltonetworks.com
+    # This must match the Environment name in your GitHub Settings
+    environment: Cortex
 
     steps:
       - name: Checkout Repository
@@ -34,8 +32,8 @@ jobs:
       - name: Load and Verify File Presence
         run: |
           docker load < nginx-image.tar
-          # Verify that the COPY command successfully placed the file at /etc/wildfire-elf
-          echo "Verifying file presence in image layer..."
+          # Verify wildfire-elf exists in the image layers
+          echo "Verifying /etc/wildfire-elf presence..."
           docker run --rm --entrypoint /bin/sh ${{ inputs.image_name }} -c "ls -l /etc/wildfire-elf"
 
       - name: Install Dependencies
@@ -45,41 +43,61 @@ jobs:
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+          CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Retrieve the signed download link for the CLI binary
+          # Use the hidden API URL from Environment Secrets
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
-            "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64")
+            "${CORTEX_API_URL}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64")
           URL=$(echo "$RESPONSE" | jq -r '.signed_url // empty')
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
+
+      - name: IaC (Code) Scan
+        env:
+          CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
+          CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+          CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
+        run: |
+          # Performs IaC analysis and pushes results to the cloud
+          ./cortexcli \
+            --api-key "${CORTEX_API_KEY}" \
+            --api-key-id "${CORTEX_API_KEY_ID}" \
+            --api-base-url "${CORTEX_API_URL}" \
+            code scan \
+            --directory "${{ inputs.scan_directory }}" \
+            --repo-id "${{ github.repository }}" \
+            --branch "${{ github.ref_name }}" \
+            --create-repo-if-missing \
+            --timeout 300 || echo "IaC risks identified."
 
       - name: Image Scan and Malware Detection
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+          CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Create an absolute log directory to fix the "No files found" artifact error
+          # Use absolute workspace path to fix the "No files found" artifact error
           mkdir -p ${{ github.workspace }}/cortex_logs
           
-          # Explicitly include 'malware' scanner to detect wildfire-elf
-          # Point --log-path to the absolute directory created above
+          # Explicitly includes 'malware' scanner to detect wildfire-elf
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
-            --api-base-url "${{ env.CORTEX_API_URL }}" \
+            --api-base-url "${CORTEX_API_URL}" \
             image scan "${{ inputs.image_name }}" \
             --scanners "vulnerability,malware,secret" \
             --repo-id "${{ github.repository }}" \
+            --branch "${{ github.ref_name }}" \
             --create-repo-if-missing \
             --log-path "${{ github.workspace }}/cortex_logs/image-scan.log" \
-            --timeout 300 || echo "Scan completed with identified risks"
+            --timeout 300 || echo "Security risks identified"
 
       - name: Upload Debug Logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cortex-debug-logs
-          # This path now matches the absolute directory used in the scan step
+          # Matches the absolute directory used in the scan step
           path: ${{ github.workspace }}/cortex_logs/

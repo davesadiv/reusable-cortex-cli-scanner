@@ -10,3 +10,19 @@ Thumbs.db
 
 # Docker
 .docker/
+
+# Cortex CLI Binary
+cortexcli
+
+# Docker Image Tarballs
+*.tar
+nginx-image.tar
+
+# Cortex Scan Logs and Metadata
+.cortexcli/
+logs/
+cortex_logs/
+*.log
+
+# Workspace temporary files
+test-apps/add-on/wildfire-elf

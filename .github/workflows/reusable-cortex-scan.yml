@@ -11,13 +11,14 @@ on:
         type: string
         default: "."
       environment_name:
-        required: true
+        required: false
         type: string
+        default: "Cortex"
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    # This must match the Environment name in your GitHub Settings
+    # Updated to point to your 'Cortex' environment
     environment: ${{ inputs.environment_name }}
 
     steps:
@@ -43,9 +44,9 @@ jobs:
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-          # URL is now hidden in Environment Secrets
           CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
+          # Retrieve the signed download link for the CLI
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
@@ -60,7 +61,7 @@ jobs:
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
           CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Performs IaC analysis on your source directory
+          # Performs IaC analysis and pushes results to the cloud
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -98,6 +99,3 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cortex-debug-logs
-          # Matches the absolute directory used in the scan step
-          path: ${{ github.workspace }}/cortex_logs/

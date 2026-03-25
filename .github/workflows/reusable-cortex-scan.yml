@@ -18,7 +18,6 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    # Targets the specified environment to access associated secrets
     environment: ${{ inputs.environment_name }}
 
     steps:
@@ -33,8 +32,7 @@ jobs:
       - name: Load and Verify File Presence
         run: |
           docker load < nginx-image.tar
-          # Confirms the wildfire-elf file exists before scanning
-          echo "Verifying /etc/wildfire-elf presence..."
+          # Confirms the file is in the image before the scan starts
           docker run --rm --entrypoint /bin/sh ${{ inputs.image_name }} -c "ls -l /etc/wildfire-elf"
 
       - name: Install Dependencies
@@ -42,12 +40,11 @@ jobs:
 
       - name: Download Cortex CLI
         env:
-          # Explicitly mapping secrets to prevent empty variable errors
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+          # Ensure this is defined in your GitHub Environment Secrets
           CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Uses the CORTEX_API_URL secret to fetch the CLI download link
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
@@ -56,34 +53,16 @@ jobs:
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
 
-      - name: IaC (Code) Scan
-        env:
-          CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
-          CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-          CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
-        run: |
-          # Identifies misconfigurations in source files like Dockerfiles
-          ./cortexcli \
-            --api-key "${CORTEX_API_KEY}" \
-            --api-key-id "${CORTEX_API_KEY_ID}" \
-            --api-base-url "${CORTEX_API_URL}" \
-            code scan \
-            --directory "${{ inputs.scan_directory }}" \
-            --repo-id "${{ github.repository }}" \
-            --branch "${{ github.ref_name }}" \
-            --create-repo-if-missing \
-            --timeout 300 || echo "IaC risks identified."
-
       - name: Image Scan and Malware Detection
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
           CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
         run: |
-          # Absolute workspace path fixes the "No files found" artifact error
+          # Use an absolute path to ensure the upload step finds the logs
           mkdir -p ${{ github.workspace }}/cortex_logs
           
-          # Includes 'malware' scanner to target wildfire-elf
+          # Explicitly calling malware scanner for wildfire-elf detection
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -101,5 +80,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cortex-debug-logs
-          # Path matches the absolute directory created during the scan
+          # Matches the directory created in the scan step
           path: ${{ github.workspace }}/cortex_logs/

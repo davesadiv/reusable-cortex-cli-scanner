@@ -33,8 +33,9 @@ jobs:
 
       - name: Load Image into Docker
         run: |
+          # Load the image built in the previous job into the local daemon
           docker load < nginx-image.tar
-          docker images # This confirms the scanner can now "see" the image
+          docker images
 
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y jq libhyperscan5
@@ -44,6 +45,7 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
+          # Retrieve the signed download link for the latest CLI binary
           RESPONSE=$(curl -s -f \
             -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" \
             -H "Authorization: ${CORTEX_API_KEY}" \
@@ -53,11 +55,13 @@ jobs:
           curl -s -L -o ./cortexcli "$URL"
           chmod +x ./cortexcli
 
-      - name: IaC Scan
+      - name: IaC (Code) Scan
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
+          # Use 'code scan' for IaC misconfiguration analysis
+          # --api-base-url, --api-key-id, and --api-key are required for cloud upload
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -66,25 +70,26 @@ jobs:
             --directory "${{ inputs.scan_directory }}" \
             --repo-id "${{ github.repository }}" \
             --branch "${{ github.ref_name }}" \
-            --timeout 300 \
-            --create-repo-if-missing || echo "IaC scan identified issues."
+            --create-repo-if-missing \
+            --timeout 300 || echo "IaC scan identified security risks."
 
-      - name: Image Scan
+      - name: Image Scan and Upload
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # 1. Verify the image is present in the local Docker daemon
-          echo "Verifying local image presence..."
-          docker images | grep "nginx" || (echo "ERROR: Image not found locally"; exit 1)
-
-          # 2. Run the scan with full path logs
-          mkdir -p .cortexcli/logs
+          # Confirm local image presence before container analysis
+          docker images | grep "nginx"
+          
+          # Perform image scanning and push results to the tenant
+          # --create-repo-if-missing ensures results are mapped to your catalog
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
             --api-base-url "${{ env.CORTEX_API_URL }}" \
             image scan "${{ inputs.image_name }}" \
             --scanners "vulnerability,malware,secret" \
-            --timeout 300 \
-            --log-path ".cortexcli/logs/image-scan.log" || echo "Image scan found security risks."
+            --repo-id "${{ github.repository }}" \
+            --branch "${{ github.ref_name }}" \
+            --create-repo-if-missing \
+            --timeout 300 || echo "Image scan identified security risks."

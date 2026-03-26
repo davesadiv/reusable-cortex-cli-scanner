@@ -17,6 +17,7 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    # This must match the Environment name in your GitHub Settings
     environment: ${{ inputs.environment_name }}
     
     env:
@@ -34,8 +35,8 @@ jobs:
       - name: Load and Verify File Presence
         run: |
           docker load < nginx-image.tar
-          # Confirmed presence: -rw-r--r-- 1 root root 8608 Mar 9 03:16 /etc/wildfire-elf
-          echo "Verifying /etc/wildfire-elf exists in the image layers..."
+          # Verify wildfire-elf exists in the image layers
+          echo "Verifying /etc/wildfire-elf presence..."
           docker run --rm --entrypoint /bin/sh ${{ inputs.image_name }} -c "ls -l /etc/wildfire-elf"
 
       - name: Install Dependencies
@@ -60,6 +61,7 @@ jobs:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
+          # Use 'code scan' for IaC misconfiguration analysis
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -69,16 +71,17 @@ jobs:
             --repo-id "${{ github.repository }}" \
             --branch "${{ github.ref_name }}" \
             --create-repo-if-missing \
-            --timeout 300 || echo "IaC risks found."
+            --timeout 300 || echo "IaC risks identified."
 
       - name: Image Scan and Malware Detection
         env:
           CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
           CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
         run: |
-          # Use an absolute workspace path to fix the artifact upload failure
+          # Create an absolute workspace path to fix the artifact upload failure
           mkdir -p ${{ github.workspace }}/cortex_logs
           
+          # Explicitly calling malware scanner for wildfire-elf detection
           ./cortexcli \
             --api-key "${CORTEX_API_KEY}" \
             --api-key-id "${CORTEX_API_KEY_ID}" \
@@ -89,7 +92,7 @@ jobs:
             --branch "${{ github.ref_name }}" \
             --create-repo-if-missing \
             --log-path "${{ github.workspace }}/cortex_logs/image-scan.log" \
-            --timeout 300 || echo "Security risks identified."
+            --timeout 300 || echo "Security risks identified"
 
       - name: Upload Debug Logs
         if: always()
